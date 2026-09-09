@@ -13,7 +13,7 @@ Turn your life into a video game. WinLife is a personal habit tracker styled as 
 - **Streaks** — every habit tracks a running streak. Miss a day and it resets; a "yesterday" toggle lets you backfill a day you forgot to log without losing progress.
 - **Missions** — longer-term goals grouped into custom columns (e.g. Mind / Body / Business). Some are simple one-shot completions, others have sub-goals or a progress bar.
 - **XP & Leveling** — every action earns XP on an exponential leveling curve, with a level-up animation when you cross a threshold.
-- **Onboarding** — new users are walked through naming their habits, output goals, and domains of focus in a short 4-step flow. Skip it entirely and go straight to the defaults if you'd rather.
+- **Onboarding** — new users are walked through a short 5-step flow: name, domains of mastery, goals per domain, content/output habits, then daily routines. Skip any step (or all of it) and go straight to the defaults if you'd rather. A one-time coach-marks walkthrough after onboarding shows the tap/swipe gestures on the real habit list.
 - **Offline-first** — the app works fully offline with no account. Optionally sign in to sync progress across devices.
 - **Daily reminders** *(iOS app only)* — an optional daily notification (defaults to 12:00 noon), plus a smart streak-protection alert at 18:00 if a streak longer than 3 days is about to break.
 

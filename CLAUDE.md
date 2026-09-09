@@ -52,7 +52,8 @@ YESTERDAY TOGGLE (backfill yesterday's habits)
 MISSIONS RENDERING + INTERACTION
 PAGE NAVIGATION (tab bar: Habits / Missions)
 AUTH (runAuth — email/password, sign up/in, offline mode)
-ONBOARDING (runOnboarding — 4 screens: name, routines, output, domains)
+ONBOARDING (runOnboarding — 5 screens: name, domains, goals, output, routines)
+COACH MARKS (maybeShowCoachMarks — first-use gesture walkthrough, once)
 EDIT HABITS / EDIT GOALS (openHabitsEditor, openGoalsEditor - post-onboarding editors)
 MIDNIGHT RESET
 INIT (wires everything together)
@@ -92,11 +93,15 @@ ENTRY POINT (async IIFE — checks Supabase session, routes to auth or game)
 - Sign out in ⚙ settings
 
 ### Onboarding (for new users / friends)
-- 4 screens: name → daily routines → content output → domains of mastery
+- 5 screens, reordered in v1.2 to follow a Future-Authoring-style flow (domains first, then goals, then habits): name → domains of mastery → goals per domain → content output (yes/no gate) → daily routines
 - Domains: Mind / Body / Business / Relationships / custom (max 4)
-- Saved to `lifeRPG_setup` in localStorage
+- Goals-per-domain screen reuses the same add-goal UI/shape as Settings → Edit Goals (`{id, label, column, xp:500}`); forward-only flow, no back button, every screen has Skip
+- Content Output screen is an in-place yes/no gate: "No" skips straight to Daily Routines, "Yes" reveals the existing add-habit form on the same screen
+- Saved to `lifeRPG_setup` in localStorage (shape unchanged by the v1.2 reorder: `{name, habits, missions, columns}`)
 - If `lifeRPG_setup` exists → skip onboarding, go straight to game
 - `getDefinitions()` reads from setup if present, falls back to hardcoded defs
+- Auth screen ("Welcome back." vs "Welcome.") is conditioned on local `lifeRPG_setup` presence (`KEYS.coachmarks` unrelated - see below) so first-time visitors aren't told "back"
+- First-use coach marks: a 4-step Next-button-driven walkthrough (tap/swipe-left/swipe-right/+20 bonus) with a spotlight highlighting the real habit row, shown once immediately after onboarding completes, gated by `lifeRPG_coachmarks_seen` in localStorage (same once-only pattern as `REMINDER_KEY`)
 
 ### Settings (⚙ icon top right)
 - Edit Habits → opens editor to add/delete habits and rename the two section headings

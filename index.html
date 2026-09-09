@@ -1242,6 +1242,51 @@
     z-index: 400;
   }
   .skip-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Coach marks: first-use gesture walkthrough. pointer-events:none on the
+     wrapper so real habit cards underneath stay fully tappable/swipeable. */
+  .coach-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    pointer-events: none;
+  }
+  .coach-spotlight {
+    position: fixed;
+    border: 2px solid var(--amber);
+    border-radius: var(--radius);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+    pointer-events: none;
+    transition: top 250ms ease, left 250ms ease, width 250ms ease, height 250ms ease;
+  }
+  .coach-card {
+    position: fixed;
+    bottom: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 48px);
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+    background: var(--bg-panel);
+    border: 1px solid var(--amber-dim);
+    border-radius: var(--radius-lg);
+    pointer-events: auto;
+  }
+  .coach-step-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .coach-text {
+    font-size: 14px;
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
 </style>
 </head>
 <body>
@@ -1348,7 +1393,7 @@
   <div class="ob-screen active">
     <div class="ob-inner">
       <div class="ob-eyebrow">WinLife</div>
-      <h1 class="ob-title" id="authTitle">Welcome back.</h1>
+      <h1 class="ob-title" id="authTitle">Welcome.</h1>
       <p class="ob-sub" id="authSub">Sign in to sync your progress across devices.</p>
       <input class="ob-input" id="authEmail" type="email" placeholder="Email" autocomplete="email">
       <input class="ob-input" id="authPassword" type="password" placeholder="Password" autocomplete="current-password">
@@ -1369,7 +1414,7 @@
     <div class="ob-inner">
       <div class="ob-eyebrow">WinLife</div>
       <h1 class="ob-title">Welcome, Hero.</h1>
-      <p class="ob-sub">Type your name to start winning today.</p>
+      <p class="ob-sub">Type your name to start winning today. WinLife turns your daily habits and yearly goals into an RPG. Next, we'll figure out what you're working toward.</p>
       <input class="ob-input" id="obNameInput" type="text" placeholder="Your name" maxlength="24" autocomplete="off">
       <button class="ob-btn" id="obNameNext">Begin →</button>
       <label class="ob-skip" for="obOnboardImport">Already have data? Import backup</label>
@@ -1377,46 +1422,12 @@
     </div>
   </div>
 
-  <!-- Screen 2: Daily Routines -->
-  <div class="ob-screen" id="obRoutines">
+  <!-- Screen 2: Domains of Mastery -->
+  <div class="ob-screen" id="obDomainsScreen">
     <div class="ob-inner">
-      <div class="ob-eyebrow">Step 2 of 4</div>
-      <h2 class="ob-title">Daily Routines</h2>
-      <p class="ob-sub">What habits will you show up for every day? Add them one by one.</p>
-      <div class="ob-add-row">
-        <input class="ob-input ob-input-sm" id="obRoutineLabel" type="text" placeholder="Habit name" maxlength="40">
-        <input class="ob-input ob-input-sm" id="obRoutineSub"   type="text" placeholder="Sub-label (optional)" maxlength="40">
-        <button class="ob-add-btn" id="obRoutineAdd">+ Add</button>
-      </div>
-      <div class="ob-list" id="obRoutineList"></div>
-      <button class="ob-btn" id="obRoutinesNext">Next →</button>
-      <button class="ob-skip" id="obRoutinesSkip">Skip for now</button>
-    </div>
-  </div>
-
-  <!-- Screen 3: Content Output -->
-  <div class="ob-screen" id="obOutput">
-    <div class="ob-inner">
-      <div class="ob-eyebrow">Step 3 of 4</div>
-      <h2 class="ob-title">Content Output</h2>
-      <p class="ob-sub">What do you create and ship? These are your output habits.</p>
-      <div class="ob-add-row">
-        <input class="ob-input ob-input-sm" id="obOutputLabel" type="text" placeholder="Output habit" maxlength="40">
-        <input class="ob-input ob-input-sm" id="obOutputSub"   type="text" placeholder="Sub-label (optional)" maxlength="40">
-        <button class="ob-add-btn" id="obOutputAdd">+ Add</button>
-      </div>
-      <div class="ob-list" id="obOutputList"></div>
-      <button class="ob-btn" id="obOutputNext">Next →</button>
-      <button class="ob-skip" id="obOutputSkip">Skip for now</button>
-    </div>
-  </div>
-
-  <!-- Screen 4: Missions / Domains -->
-  <div class="ob-screen" id="obMissions">
-    <div class="ob-inner">
-      <div class="ob-eyebrow">Step 4 of 4</div>
+      <div class="ob-eyebrow">Step 2 of 5</div>
       <h2 class="ob-title">Domains of Mastery</h2>
-      <p class="ob-sub">Choose up to 4 areas to conquer this year.</p>
+      <p class="ob-sub">A domain is a big area of your life you want to level up - like Mind, Body, or Business. Pick up to 4. You'll add specific goals for each next.</p>
       <div class="ob-domains" id="obDomains">
         <button class="ob-domain-chip" data-domain="Mind">Mind</button>
         <button class="ob-domain-chip" data-domain="Body">Body</button>
@@ -1425,9 +1436,61 @@
         <button class="ob-domain-chip ob-domain-custom" id="obDomainCustomBtn">+ Custom</button>
       </div>
       <input class="ob-input ob-input-sm" id="obCustomDomainInput" placeholder="Domain name" maxlength="24" style="display:none; margin-top:12px">
+      <button class="ob-btn" id="obDomainsNext">Next →</button>
+      <button class="ob-skip" id="obDomainsSkip">Skip for now</button>
+    </div>
+  </div>
+
+  <!-- Screen 3: Goals per Domain -->
+  <div class="ob-screen" id="obGoalsScreen">
+    <div class="ob-inner">
+      <div class="ob-eyebrow">Step 3 of 5</div>
+      <h2 class="ob-title">Set Your Goals</h2>
+      <p class="ob-sub">For each domain you picked, add one or more goals to hit this year. These become permanent milestones on your Missions page - completing one is worth 500 XP.</p>
       <div id="obMissionColumns"></div>
-      <button class="ob-btn" id="obMissionsFinish">Enter the arena →</button>
-      <button class="ob-skip" id="obMissionsSkip">Skip for now</button>
+      <button class="ob-btn" id="obGoalsNext">Next →</button>
+      <button class="ob-skip" id="obGoalsSkip">Skip for now</button>
+    </div>
+  </div>
+
+  <!-- Screen 4: Content Output -->
+  <div class="ob-screen" id="obOutput">
+    <div class="ob-inner">
+      <div class="ob-eyebrow">Step 4 of 5</div>
+      <h2 class="ob-title">Content &amp; Output</h2>
+      <div id="obOutputGate">
+        <p class="ob-sub">Do you regularly ship or post things - content, code, music, writing? These become trackable daily output habits.</p>
+        <button class="ob-btn" id="obOutputYesBtn">Yes, add output habits →</button>
+        <button class="ob-skip" id="obOutputNoBtn">No, skip this</button>
+      </div>
+      <div id="obOutputItems" style="display:none">
+        <p class="ob-sub">What do you create and ship? These are your output habits.</p>
+        <div class="ob-add-row">
+          <input class="ob-input ob-input-sm" id="obOutputLabel" type="text" placeholder="Output habit" maxlength="40">
+          <input class="ob-input ob-input-sm" id="obOutputSub"   type="text" placeholder="Sub-label (optional)" maxlength="40">
+          <button class="ob-add-btn" id="obOutputAdd">+ Add</button>
+        </div>
+        <div class="ob-list" id="obOutputList"></div>
+        <button class="ob-btn" id="obOutputNext">Next →</button>
+        <button class="ob-skip" id="obOutputSkip">Skip for now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 5: Daily Routines -->
+  <div class="ob-screen" id="obRoutines">
+    <div class="ob-inner">
+      <div class="ob-eyebrow">Step 5 of 5</div>
+      <h2 class="ob-title">Daily Routines</h2>
+      <p class="ob-sub">What habits will you show up for every day? Add them one by one. Routines are worth 10 XP each and reset daily - output habits (like you just set up) are worth 15 XP.</p>
+      <div class="ob-add-row">
+        <input class="ob-input ob-input-sm" id="obRoutineLabel" type="text" placeholder="Habit name" maxlength="40">
+        <input class="ob-input ob-input-sm" id="obRoutineSub"   type="text" placeholder="Sub-label (optional)" maxlength="40">
+        <button class="ob-add-btn" id="obRoutineAdd">+ Add</button>
+      </div>
+      <div class="ob-list" id="obRoutineList"></div>
+      <button class="ob-btn" id="obRoutinesNext">Enter the arena →</button>
+      <button class="ob-skip" id="obRoutinesSkip">Skip for now</button>
     </div>
   </div>
 
@@ -1682,11 +1745,12 @@ const MISSION_DEFINITIONS = [
 ];
 
 const KEYS = {
-  player:   'lifeRPG_player',
-  habits:   'lifeRPG_habits',
-  log:      'lifeRPG_log',
-  missions: 'lifeRPG_missions',
-  setup:    'lifeRPG_setup',   // FUTURE: edit mode reads/writes here too
+  player:     'lifeRPG_player',
+  habits:     'lifeRPG_habits',
+  log:        'lifeRPG_log',
+  missions:   'lifeRPG_missions',
+  setup:      'lifeRPG_setup',   // FUTURE: edit mode reads/writes here too
+  coachmarks: 'lifeRPG_coachmarks_seen',
 };
 
 /* ================================================================
@@ -2713,75 +2777,19 @@ function runOnboarding(onComplete) {
       const val = nameInput.value.trim();
       if (!val) { nameInput.focus(); return; }
       playerName = val;
-      showScreen('obRoutines');
+      showScreen('obDomainsScreen');
     } catch(e) {
       alert('Error: ' + e.message + '\n' + e.stack);
     }
   });
 
-  // -- Screen 2: Daily Routines ---------------------------------
-  const rLabelInput  = document.getElementById('obRoutineLabel');
-  const rSubInput    = document.getElementById('obRoutineSub');
-  const rAddBtn      = document.getElementById('obRoutineAdd');
-  const obRList      = document.getElementById('obRoutineList');
-  const rNext        = document.getElementById('obRoutinesNext');
-  const rSkip        = document.getElementById('obRoutinesSkip');
-
-  function refreshRoutineList() {
-    renderList(obRList, routineHabits, (i) => { routineHabits.splice(i, 1); refreshRoutineList(); });
-  }
-
-  function addRoutine() {
-    const label = rLabelInput.value.trim();
-    if (!label) { rLabelInput.focus(); return; }
-    const sub  = rSubInput.value.trim();
-    const ids  = routineHabits.map(h => h.id);
-    routineHabits.push({ id: slugify(label, ids), label, sub, section: 'routines', xp: 10 });
-    rLabelInput.value = ''; rSubInput.value = '';
-    rLabelInput.focus();
-    refreshRoutineList();
-  }
-
-  rAddBtn.addEventListener('click', addRoutine);
-  rLabelInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') rAddBtn.click(); });
-  rNext.addEventListener('click', () => showScreen('obOutput'));
-  rSkip.addEventListener('click', () => showScreen('obOutput'));
-
-  // -- Screen 3: Content Output ---------------------------------
-  const oLabelInput  = document.getElementById('obOutputLabel');
-  const oSubInput    = document.getElementById('obOutputSub');
-  const oAddBtn      = document.getElementById('obOutputAdd');
-  const obOList      = document.getElementById('obOutputList');
-  const oNext        = document.getElementById('obOutputNext');
-  const oSkip        = document.getElementById('obOutputSkip');
-
-  function refreshOutputList() {
-    renderList(obOList, outputHabits, (i) => { outputHabits.splice(i, 1); refreshOutputList(); });
-  }
-
-  function addOutput() {
-    const label = oLabelInput.value.trim();
-    if (!label) { oLabelInput.focus(); return; }
-    const sub  = oSubInput.value.trim();
-    const ids  = outputHabits.map(h => h.id);
-    outputHabits.push({ id: slugify(label, ids), label, sub, section: 'content', xp: 15 });
-    oLabelInput.value = ''; oSubInput.value = '';
-    oLabelInput.focus();
-    refreshOutputList();
-  }
-
-  oAddBtn.addEventListener('click', addOutput);
-  oLabelInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') oAddBtn.click(); });
-  oNext.addEventListener('click', () => showScreen('obMissions'));
-  oSkip.addEventListener('click', () => showScreen('obMissions'));
-
-  // -- Screen 4: Missions / Domains -----------------------------
+  // -- Screen 2: Domains of Mastery ------------------------------
   const domainsEl        = document.getElementById('obDomains');
   const customBtn        = document.getElementById('obDomainCustomBtn');
   const customInput      = document.getElementById('obCustomDomainInput');
+  const domainsNext      = document.getElementById('obDomainsNext');
+  const domainsSkip      = document.getElementById('obDomainsSkip');
   const missionColsEl    = document.getElementById('obMissionColumns');
-  const finishBtn        = document.getElementById('obMissionsFinish');
-  const missionsSkipBtn  = document.getElementById('obMissionsSkip');
 
   function renderMissionCols() {
     missionColsEl.innerHTML = '';
@@ -2875,6 +2883,93 @@ function runOnboarding(onComplete) {
     }
   });
 
+  domainsNext.addEventListener('click', () => {
+    renderMissionCols(); // defensive re-render in case columns are stale/empty
+    showScreen('obGoalsScreen');
+  });
+  domainsSkip.addEventListener('click', () => {
+    selectedDomains = [];
+    renderMissionCols();
+    showScreen('obGoalsScreen');
+  });
+
+  // -- Screen 3: Goals per Domain --------------------------------
+  const goalsNext = document.getElementById('obGoalsNext');
+  const goalsSkip = document.getElementById('obGoalsSkip');
+
+  goalsNext.addEventListener('click', () => showScreen('obOutput'));
+  goalsSkip.addEventListener('click', () => showScreen('obOutput'));
+
+  // -- Screen 4: Content Output -----------------------------------
+  const outputGate    = document.getElementById('obOutputGate');
+  const outputItems   = document.getElementById('obOutputItems');
+  const outputYesBtn  = document.getElementById('obOutputYesBtn');
+  const outputNoBtn   = document.getElementById('obOutputNoBtn');
+  const oLabelInput   = document.getElementById('obOutputLabel');
+  const oSubInput     = document.getElementById('obOutputSub');
+  const oAddBtn       = document.getElementById('obOutputAdd');
+  const obOList       = document.getElementById('obOutputList');
+  const oNext         = document.getElementById('obOutputNext');
+  const oSkip         = document.getElementById('obOutputSkip');
+
+  function refreshOutputList() {
+    renderList(obOList, outputHabits, (i) => { outputHabits.splice(i, 1); refreshOutputList(); });
+  }
+
+  function addOutput() {
+    const label = oLabelInput.value.trim();
+    if (!label) { oLabelInput.focus(); return; }
+    const sub  = oSubInput.value.trim();
+    const ids  = outputHabits.map(h => h.id);
+    outputHabits.push({ id: slugify(label, ids), label, sub, section: 'content', xp: 15 });
+    oLabelInput.value = ''; oSubInput.value = '';
+    oLabelInput.focus();
+    refreshOutputList();
+  }
+
+  outputYesBtn.addEventListener('click', () => {
+    outputGate.style.display = 'none';
+    outputItems.style.display = 'block';
+    oLabelInput.focus();
+  });
+  outputNoBtn.addEventListener('click', () => {
+    outputHabits = [];
+    showScreen('obRoutines');
+  });
+
+  oAddBtn.addEventListener('click', addOutput);
+  oLabelInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') oAddBtn.click(); });
+  oNext.addEventListener('click', () => showScreen('obRoutines'));
+  oSkip.addEventListener('click', () => showScreen('obRoutines'));
+
+  // -- Screen 5: Daily Routines -------------------------------------
+  const rLabelInput  = document.getElementById('obRoutineLabel');
+  const rSubInput    = document.getElementById('obRoutineSub');
+  const rAddBtn      = document.getElementById('obRoutineAdd');
+  const obRList      = document.getElementById('obRoutineList');
+  const rNext        = document.getElementById('obRoutinesNext');
+  const rSkip        = document.getElementById('obRoutinesSkip');
+
+  function refreshRoutineList() {
+    renderList(obRList, routineHabits, (i) => { routineHabits.splice(i, 1); refreshRoutineList(); });
+  }
+
+  function addRoutine() {
+    const label = rLabelInput.value.trim();
+    if (!label) { rLabelInput.focus(); return; }
+    const sub  = rSubInput.value.trim();
+    const ids  = routineHabits.map(h => h.id);
+    routineHabits.push({ id: slugify(label, ids), label, sub, section: 'routines', xp: 10 });
+    rLabelInput.value = ''; rSubInput.value = '';
+    rLabelInput.focus();
+    refreshRoutineList();
+  }
+
+  rAddBtn.addEventListener('click', addRoutine);
+  rLabelInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') rAddBtn.click(); });
+  rNext.addEventListener('click', finish);
+  rSkip.addEventListener('click', finish);
+
   function finish() {
     // Auto-add anything still typed but not yet added
     if (rLabelInput.value.trim()) addRoutine();
@@ -2913,9 +3008,6 @@ function runOnboarding(onComplete) {
     overlay.classList.add('hidden');
     onComplete();
   }
-
-  finishBtn.addEventListener('click', finish);
-  missionsSkipBtn.addEventListener('click', finish);
 }
 
 
@@ -3458,6 +3550,15 @@ async function runAuth(onComplete) {
 
   let isSignUp = false;
 
+  // Show "Welcome back." only when this device has completed onboarding
+  // before (has local lifeRPG_setup). A brand-new visitor sees neutral copy
+  // instead of a confusing "back" greeting they never earned.
+  const hasLocalSetup = !!localStorage.getItem(KEYS.setup);
+  title.textContent = hasLocalSetup ? 'Welcome back.' : 'Welcome.';
+  sub.textContent    = hasLocalSetup
+    ? 'Sign in to sync your progress across devices.'
+    : 'Sign in or create an account to sync your progress.';
+
   toggleBtn.addEventListener('click', () => {
     isSignUp = !isSignUp;
     title.textContent    = isSignUp ? 'Create account.' : 'Welcome back.';
@@ -3573,12 +3674,99 @@ async function runAuth(onComplete) {
   }
 })();
 
+/* ================================================================
+   COACH MARKS
+   First-use walkthrough of the habit-card gestures (tap / swipe
+   left / swipe right) plus the all-habits bonus, shown once right
+   after onboarding completes. Gated by KEYS.coachmarks using the
+   same "!== null means already decided" once-only pattern as
+   REMINDER_KEY above. Advances via Next button only - deliberately
+   decoupled from the real gesture handlers so it can never interfere
+   with them; pointer-events:none on the overlay keeps real habit
+   cards underneath fully tappable/swipeable while it's on screen.
+   ================================================================ */
+const COACH_STEPS = [
+  { text: "Tap any habit to mark it done. You'll earn XP instantly.",
+    target: () => document.querySelector('#routinesList .card-row') },
+  { text: 'Swipe a completed habit left to undo it.',
+    target: () => document.querySelector('#routinesList .card-row') },
+  { text: 'Swipe an incomplete habit right to skip it for today.',
+    target: () => document.querySelector('#routinesList .card-row') },
+  { text: 'Finish every habit in both sections for a +20 XP bonus.',
+    target: () => document.getElementById('routinesMeta') },
+];
+
+function maybeShowCoachMarks() {
+  if (localStorage.getItem(KEYS.coachmarks) !== null) return; // already shown or skipped
+  if (!document.querySelector('#routinesList .card-row')) {
+    // Nothing to demo (all habits skipped during onboarding) - mark seen
+    // so this never awkwardly appears later once habits are added.
+    localStorage.setItem(KEYS.coachmarks, '1');
+    return;
+  }
+
+  let step = 0;
+  const overlayEl = document.createElement('div');
+  overlayEl.className = 'coach-overlay';
+  const spotlightEl = document.createElement('div');
+  spotlightEl.className = 'coach-spotlight';
+  const cardEl = document.createElement('div');
+  cardEl.className = 'coach-card';
+  cardEl.innerHTML = `
+    <div class="coach-step-label"></div>
+    <div class="coach-text"></div>
+    <button class="ob-btn" id="coachNextBtn">Next →</button>
+    <button class="ob-skip" id="coachSkipBtn">Skip</button>
+  `;
+  overlayEl.appendChild(spotlightEl);
+  overlayEl.appendChild(cardEl);
+  document.body.appendChild(overlayEl);
+
+  const labelEl = cardEl.querySelector('.coach-step-label');
+  const textEl  = cardEl.querySelector('.coach-text');
+  const nextBtn = cardEl.querySelector('#coachNextBtn');
+  const skipBtn = cardEl.querySelector('#coachSkipBtn');
+
+  function positionSpotlight(el) {
+    if (!el) { spotlightEl.style.display = 'none'; return; }
+    const r = el.getBoundingClientRect();
+    spotlightEl.style.display = 'block';
+    spotlightEl.style.top    = (r.top - 6) + 'px';
+    spotlightEl.style.left   = (r.left - 6) + 'px';
+    spotlightEl.style.width  = (r.width + 12) + 'px';
+    spotlightEl.style.height = (r.height + 12) + 'px';
+  }
+
+  function showStep(i) {
+    const s = COACH_STEPS[i];
+    labelEl.textContent = `${i + 1} / ${COACH_STEPS.length}`;
+    textEl.textContent  = s.text;
+    positionSpotlight(s.target());
+    nextBtn.textContent = i === COACH_STEPS.length - 1 ? 'Got it' : 'Next →';
+  }
+
+  function finishTour() {
+    localStorage.setItem(KEYS.coachmarks, '1');
+    overlayEl.remove();
+  }
+
+  nextBtn.addEventListener('click', () => {
+    step++;
+    if (step >= COACH_STEPS.length) { finishTour(); return; }
+    showStep(step);
+  });
+  skipBtn.addEventListener('click', finishTour);
+
+  showStep(0);
+}
+
 async function startApp() {
   const setup = localStorage.getItem(KEYS.setup);
   if (!setup) {
     runOnboarding(() => {
       sync.push();
       init();
+      maybeShowCoachMarks();
     });
   } else {
     const overlay = document.getElementById('onboardingOverlay');
