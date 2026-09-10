@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>WinLife</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -37,6 +37,9 @@
     --sage:           #8aad7a;
     --sage-dim:       #2d3d25;
     --sage-soft:      rgba(138, 173, 122, 0.07);
+
+    --rust:           #c1786a;
+    --rust-dim:       #3d2621;
 
     --xp-color:       #c4956a;
     --xp-track:       rgba(196, 149, 106, 0.1);
@@ -578,18 +581,19 @@
      RESPONSIVE
      ============================================================ */
   /* ============================================================
-     PAGE SYSTEM - horizontal swipe between Habits / Missions
+     PAGE SYSTEM - horizontal swipe between Habits / Missions / Stats
+     Page count generalized via JS (translateX(calc(...))) rather
+     than a fixed-page boolean class - see initNavigation()'s goTo().
      ============================================================ */
   .pages-wrapper {
     display: flex;
-    width: 200%;
+    width: 300%;
     align-items: flex-start;
     overflow: hidden;
     transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), height 240ms ease;
     touch-action: pan-y;
   }
-  .pages-wrapper.on-missions { transform: translateX(-50%); }
-  .page { width: 50%; min-width: 50%; }
+  .page { width: 33.3334%; min-width: 33.3334%; }
 
   .tab-bar {
     display: flex;
@@ -881,6 +885,80 @@
   .yesterday-toggle.active { border-color: var(--amber); color: var(--amber); }
   .yesterday-icon { font-size: 8px; transition: transform var(--transition); }
   .yesterday-toggle.active .yesterday-icon { transform: rotate(180deg); }
+
+  /* ============================================================
+     STATS PAGE (Progress tab) - tiles, heatmap, trend, weekly
+     ============================================================ */
+  .stats-main { padding: 16px 20px 24px; }
+
+  .stat-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+  .stat-tile {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .stat-tile-value { font-family: var(--font-display); font-size: 22px; color: var(--amber); }
+  .stat-tile-label {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-dim); margin-top: 4px;
+  }
+  .stat-tile-delta {
+    font-family: var(--font-mono); font-size: 10px; margin-top: 6px;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .stat-tile-delta.up   { color: var(--sage); }
+  .stat-tile-delta.down { color: var(--rust); }
+  .stat-tile-delta.flat { color: var(--text-dim); }
+
+  .stats-view-switch {
+    display: flex; gap: 6px; margin-bottom: 16px;
+  }
+  .stats-view-btn {
+    flex: 1; padding: 8px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-secondary); font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+    transition: border-color var(--transition), color var(--transition);
+  }
+  .stats-view-btn.active { border-color: var(--amber); color: var(--amber); }
+
+  .stats-view-container {
+    background: var(--bg-panel); border: 1px solid var(--border-mid);
+    border-radius: var(--radius-lg); padding: 18px; position: relative;
+  }
+  .stats-empty {
+    font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+    text-align: center; padding: 24px 0;
+  }
+
+  /* Heatmap */
+  .stats-heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .stats-heatmap { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); gap: 3px; width: max-content; }
+  .stats-cell { width: 12px; height: 12px; border-radius: 2px; background: var(--bg-card); outline: 1px solid var(--border); }
+  .stats-cell[data-level="1"] { background: #3a331f; }
+  .stats-cell[data-level="2"] { background: #5c4c2a; }
+  .stats-cell[data-level="3"] { background: #8f7239; }
+  .stats-cell[data-level="4"] { background: var(--amber); }
+  .stats-heatmap-legend {
+    display: flex; align-items: center; gap: 6px; margin-top: 12px;
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
+  }
+  .stats-heatmap-legend .stats-cell { width: 10px; height: 10px; }
+
+  /* Trend line */
+  .stats-line-svg { width: 100%; height: 150px; display: block; }
+  .stats-tooltip {
+    position: absolute; pointer-events: none; background: var(--bg-card); border: 1px solid var(--border-mid);
+    border-radius: var(--radius); padding: 6px 9px; font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-primary); opacity: 0; transition: opacity 120ms ease; white-space: nowrap; z-index: 10;
+  }
+  .stats-tooltip .tt-sub { color: var(--text-dim); font-size: 10px; }
+
+  /* Weekly bars */
+  .stats-week-bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 130px; }
+  .stats-week-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .stats-week-bar { width: 100%; max-width: 24px; background: var(--amber); border-radius: 3px 3px 0 0; }
 
   /* ============================================================
      ONBOARDING
@@ -1360,11 +1438,44 @@
 </main>
 </div>
 
+<!-- ── PAGE 3: PROGRESS ───────────────────────────────────── -->
+<div class="page" id="pageStats">
+<main class="main stats-main">
+
+  <div class="stat-tiles">
+    <div class="stat-tile">
+      <div class="stat-tile-value" id="statsTileStreak">0d</div>
+      <div class="stat-tile-label">Streak</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-value" id="statsTileWeek">0%</div>
+      <div class="stat-tile-label">7-Day Completion</div>
+      <div class="stat-tile-delta" id="statsTileWeekDelta"></div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-value" id="statsTileXP">0</div>
+      <div class="stat-tile-label">XP This Month</div>
+      <div class="stat-tile-delta" id="statsTileXPDelta"></div>
+    </div>
+  </div>
+
+  <div class="stats-view-switch" id="statsViewSwitch">
+    <button class="stats-view-btn active" data-view="heatmap">Heatmap</button>
+    <button class="stats-view-btn" data-view="trend">Trend</button>
+    <button class="stats-view-btn" data-view="weekly">Weekly</button>
+  </div>
+
+  <div class="stats-view-container" id="statsViewContainer"></div>
+
+</main>
+</div>
+
 </div><!-- /pages-wrapper -->
 
 <div class="tab-bar" id="tabBar">
   <button class="tab-btn active" data-page="0">⚔ Habits</button>
   <button class="tab-btn" data-page="1">🎯 Missions</button>
+  <button class="tab-btn" data-page="2">📈 Progress</button>
 </div>
 
 <div class="stats-bar">
@@ -1979,6 +2090,82 @@ const habitLogic = {
         out[id] = { ...h, streak: 0, prevStreak: h.streak };
     }
     return out;
+  },
+};
+
+/* ================================================================
+   ENTITLEMENTS
+   FUTURE (v1.3): replace isPremiumUser() with a real purchase or
+   subscription entitlement check. It returns false today because no
+   paid tier exists yet - everyone gets the free-tier history window,
+   with zero visible "locked"/"upgrade" messaging anywhere, since
+   there is nothing to sell yet. Flipping this one function is what
+   activates the freemium split later; the visible paywall UI (lock
+   icons, upgrade CTAs) is separate future work that goes with it.
+   ================================================================ */
+const STATS_FREE_HISTORY_DAYS = 90;
+
+function isPremiumUser() {
+  return false;
+}
+
+function statsHistoryLimitDays() {
+  return isPremiumUser() ? Infinity : STATS_FREE_HISTORY_DAYS;
+}
+
+/* ================================================================
+   STATS / ANALYTICS - pure, no DOM
+   Historical progress derived from lifeRPG_log. No new storage - the
+   log is never pruned (see checkMidnightReset), so full history is
+   already available to aggregate over.
+
+   Known approximations (the log doesn't store everything a perfect
+   analytics view would want - documented here rather than solved,
+   since the data to solve them properly doesn't exist):
+   - The +20 "all habits done" bonus isn't recorded per-day in the
+     log, only folded into cumulative player.totalXP at the time. We
+     infer it: if every currently-defined habit is marked done for a
+     date, assume the bonus was earned that day too.
+   - The completion-% denominator uses the CURRENT habit list for
+     every past day, since the app has no record of which habits
+     existed on which past date. Recent days are accurate; very old
+     days can be skewed if the habit list changed a lot since then.
+   ================================================================ */
+const statsLogic = {
+  // Oldest-to-newest array of { key: 'YYYY-MM-DD', date: Date } for
+  // the trailing `days` days including today. Same local-timezone
+  // key format as habitLogic.todayKey().
+  dateKeysForRange(days) {
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      out.push({ key, date: d });
+    }
+    return out;
+  },
+
+  // { completed, total, pct, xp } for one date.
+  dayStats(log, habitDefs, dateKey) {
+    const entry = log[dateKey] || {};
+    let completed = 0, xp = 0;
+    habitDefs.forEach(h => {
+      if (entry[h.id] === true) { completed++; xp += h.xp; }
+    });
+    const total = habitDefs.length;
+    if (total > 0 && completed === total) xp += 20; // inferred all-done bonus
+    return { completed, total, pct: total ? completed / total : 0, xp };
+  },
+
+  // The single shared source the heatmap, trend line, and weekly
+  // bars all read from - compute once, render three ways.
+  buildSeries(log, habitDefs, days) {
+    return this.dateKeysForRange(days).map(({ key, date }) => ({
+      dateKey: key,
+      date,
+      ...this.dayStats(log, habitDefs, key),
+    }));
   },
 };
 
@@ -2666,18 +2853,215 @@ function renderMissions(missions, onUpdate) {
 }
 
 /* ================================================================
+   STATS PAGE RENDERING (Progress tab)
+   ================================================================ */
+let statsCurrentView   = 'heatmap';
+let statsCurrentSeries = null;
+
+function renderStatsPage(player, habits, log) {
+  const habitDefs = getHabitDefs();
+  const limit = statsHistoryLimitDays();
+  // Cap the render window even under an unlimited (premium) entitlement -
+  // nobody needs literally Infinity days of squares/bars rendered at once.
+  const days = Number.isFinite(limit) ? limit : 365;
+  const series = statsLogic.buildSeries(log, habitDefs, days);
+  statsCurrentSeries = series;
+
+  renderStatsTiles(series, habits);
+  renderStatsView(series);
+
+  // Wire the view switcher once - re-renders on every page visit shouldn't
+  // stack duplicate click listeners.
+  const switchEl = document.getElementById('statsViewSwitch');
+  if (!switchEl._wired) {
+    switchEl._wired = true;
+    switchEl.querySelectorAll('.stats-view-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        switchEl.querySelectorAll('.stats-view-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        statsCurrentView = btn.dataset.view;
+        renderStatsView(statsCurrentSeries);
+      });
+    });
+  }
+}
+
+function renderStatsTiles(series, habits) {
+  const streak = Object.values(habits).reduce((m, h) => Math.max(m, h.streak || 0), 0);
+  document.getElementById('statsTileStreak').textContent = streak + 'd';
+
+  const last7 = series.slice(-7);
+  const prev7 = series.slice(-14, -7);
+  const week7pct     = last7.length ? Math.round(100 * last7.reduce((s, d) => s + d.pct, 0) / last7.length) : 0;
+  const prevWeek7pct = prev7.length ? Math.round(100 * prev7.reduce((s, d) => s + d.pct, 0) / prev7.length) : 0;
+  document.getElementById('statsTileWeek').textContent = week7pct + '%';
+  // Plain "%" rather than "percentage points" - matches how people actually
+  // talk ("completion is up 12% from last week"), not the more technically
+  // correct but jargon-y framing.
+  renderStatsDelta('statsTileWeekDelta', week7pct, prevWeek7pct,
+    (diff) => `${diff > 0 ? '+' : ''}${diff}% vs prior 7d`);
+
+  const last30 = series.slice(-30);
+  const prev30 = series.slice(-60, -30);
+  const monthXP     = last30.reduce((s, d) => s + d.xp, 0);
+  const prevMonthXP = prev30.reduce((s, d) => s + d.xp, 0);
+  document.getElementById('statsTileXP').textContent = monthXP.toLocaleString();
+  // A thin prior window (barely any tracked days) makes the relative-%
+  // math swing wildly - a couple completions after near-zero prior
+  // activity reads as "+2900%", which is meaningless rather than just
+  // imprecise. Require a handful of active days before trusting the
+  // ratio, not just a nonzero total - otherwise fall back to the same
+  // "first period tracked" message used for genuinely zero history.
+  const prevActiveDays = prev30.filter(d => d.xp > 0).length;
+  if (prevActiveDays < 5) {
+    renderStatsDelta('statsTileXPDelta', monthXP, 0, () => '');
+  } else {
+    renderStatsDelta('statsTileXPDelta', monthXP, prevMonthXP,
+      (diff) => `${diff > 0 ? '+' : ''}${Math.round((diff / prevMonthXP) * 100)}% vs prior 30d`);
+  }
+}
+
+// Renders a delta line under a stat tile. previous===0 is treated as "not
+// enough history yet" rather than shown as a divide-by-zero.
+function renderStatsDelta(elId, current, previous, label) {
+  const el = document.getElementById(elId);
+  el.className = 'stat-tile-delta'; // clear stale up/down/flat from a prior render
+  el.textContent = '';
+  if (previous === 0) {
+    if (current > 0) { el.textContent = 'first period tracked'; el.classList.add('flat'); }
+    return;
+  }
+  const diff = current - previous;
+  const dir   = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+  const arrow = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '→';
+  el.classList.add(dir);
+  el.innerHTML = `<span>${arrow}</span> ${label(diff)}`;
+}
+
+function renderStatsView(series) {
+  const container = document.getElementById('statsViewContainer');
+  container.innerHTML = '';
+  if (!series.length || !series.some(d => d.total > 0)) {
+    container.innerHTML = '<div class="stats-empty">No habits tracked yet - complete a few days and your progress will show up here.</div>';
+    return;
+  }
+  if (statsCurrentView === 'trend') renderStatsTrend(container, series);
+  else if (statsCurrentView === 'weekly') renderStatsWeekly(container, series);
+  else renderStatsHeatmap(container, series);
+}
+
+function renderStatsHeatmap(container, series) {
+  const wrap = document.createElement('div');
+  wrap.className = 'stats-heatmap-wrap';
+  const grid = document.createElement('div');
+  grid.className = 'stats-heatmap';
+
+  // Pad the front so columns align to calendar weeks, GitHub-style.
+  const padStart = series[0].date.getDay();
+  const cells = [...Array(padStart).fill(null), ...series];
+  cells.forEach(d => {
+    const cell = document.createElement('div');
+    cell.className = 'stats-cell';
+    if (!d) { cell.style.visibility = 'hidden'; grid.appendChild(cell); return; }
+    const level = d.total === 0 || d.pct === 0 ? 0 : d.pct < 0.35 ? 1 : d.pct < 0.65 ? 2 : d.pct < 0.9 ? 3 : 4;
+    cell.dataset.level = level;
+    cell.title = `${d.date.toDateString()} - ${d.completed}/${d.total} done, ${d.xp} xp`;
+    grid.appendChild(cell);
+  });
+  wrap.appendChild(grid);
+  container.appendChild(wrap);
+
+  const legend = document.createElement('div');
+  legend.className = 'stats-heatmap-legend';
+  legend.innerHTML = '<span>Less</span>' +
+    [0, 1, 2, 3, 4].map(l => `<div class="stats-cell" data-level="${l}"></div>`).join('') +
+    '<span>More</span>';
+  container.appendChild(legend);
+}
+
+function renderStatsTrend(container, series) {
+  const W = 720, H = 150, PAD = 8;
+  const maxXP = Math.max(...series.map(d => d.xp), 1);
+  const xFor = (i) => PAD + (i / Math.max(1, series.length - 1)) * (W - PAD * 2);
+  const yFor = (v) => H - PAD - (v / maxXP) * (H - PAD * 2 - 16);
+
+  // 7-day rolling average smooths day-to-day noise so the trend reads clearly.
+  const rolling = series.map((d, i) => {
+    const slice = series.slice(Math.max(0, i - 6), i + 1);
+    return slice.reduce((s, x) => s + x.xp, 0) / slice.length;
+  });
+
+  const areaPath = 'M ' + series.map((d, i) => `${xFor(i)},${yFor(d.xp)}`).join(' L ') +
+    ` L ${xFor(series.length - 1)},${H - PAD} L ${xFor(0)},${H - PAD} Z`;
+  const linePath = 'M ' + rolling.map((v, i) => `${xFor(i)},${yFor(v)}`).join(' L ');
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'stats-line-svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="statsAreaGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#d4a853" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="#d4a853" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#statsAreaGrad)" stroke="none"/>
+    <path d="${linePath}" fill="none" stroke="#d4a853" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  `;
+  container.appendChild(svg);
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'stats-tooltip';
+  container.appendChild(tooltip);
+
+  svg.addEventListener('mousemove', (e) => {
+    const rect = svg.getBoundingClientRect();
+    const relX = (e.clientX - rect.left) / rect.width * W;
+    let idx = Math.round((relX - PAD) / (W - PAD * 2) * (series.length - 1));
+    idx = Math.max(0, Math.min(series.length - 1, idx));
+    const d = series[idx];
+    tooltip.style.opacity = 1;
+    tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+    tooltip.style.top  = (e.clientY - rect.top - 36) + 'px';
+    tooltip.innerHTML = `<div>${d.date.toDateString()}</div><div class="tt-sub">${d.xp} xp &middot; ${Math.round(d.pct * 100)}% complete</div>`;
+  });
+  svg.addEventListener('mouseleave', () => { tooltip.style.opacity = 0; });
+}
+
+function renderStatsWeekly(container, series) {
+  const chart = document.createElement('div');
+  chart.className = 'stats-week-bar-chart';
+  for (let i = 0; i < series.length; i += 7) {
+    const chunk = series.slice(i, i + 7);
+    if (!chunk.length) continue;
+    const pct = chunk.reduce((s, d) => s + d.pct, 0) / chunk.length;
+    const col = document.createElement('div');
+    col.className = 'stats-week-bar-col';
+    const bar = document.createElement('div');
+    bar.className = 'stats-week-bar';
+    bar.style.height = Math.max(4, pct * 100) + '%';
+    const endDate = chunk[chunk.length - 1].date;
+    bar.title = `Week of ${endDate.toDateString()} - ${Math.round(pct * 100)}%`;
+    col.appendChild(bar);
+    chart.appendChild(col);
+  }
+  container.appendChild(chart);
+}
+
+/* ================================================================
    PAGE NAVIGATION - horizontal swipe / dot tap
    ================================================================ */
 function initNavigation(onPageChange) {
   const wrapper = document.getElementById('pagesWrapper');
   const tabs    = document.querySelectorAll('.tab-btn');
-  const pages   = [document.getElementById('pageHabits'), document.getElementById('pageMissions')];
+  const pages   = [document.getElementById('pageHabits'), document.getElementById('pageMissions'), document.getElementById('pageStats')];
   let currentPage = 0;
   let navStartX = 0, navStartY = 0, navDragging = false;
 
-  // Both pages sit in one flex row (for the slide transform), so without this
-  // the wrapper's height defaults to the taller of the two pages even when the
-  // shorter one is showing, leaving a blank gap above the tab bar.
+  // All pages sit in one flex row (for the slide transform), so without this
+  // the wrapper's height defaults to the tallest page even when a shorter one
+  // is showing, leaving a blank gap above the tab bar.
   function syncHeight() {
     wrapper.style.height = pages[currentPage].offsetHeight + 'px';
     // When the active page is shorter than the screen there's nothing real to
@@ -2691,7 +3075,9 @@ function initNavigation(onPageChange) {
 
   function goTo(page) {
     currentPage = page;
-    wrapper.classList.toggle('on-missions', page === 1);
+    // Generic N-page slide: translate by page/pageCount rather than a
+    // fixed-page boolean class, so this scales past 3 pages for free.
+    wrapper.style.transform = `translateX(calc(-${page} * 100% / ${pages.length}))`;
     tabs.forEach((t, i) => t.classList.toggle('active', i === page));
     syncHeight();
     onPageChange(page);
@@ -2711,8 +3097,8 @@ function initNavigation(onPageChange) {
     const dx = e.changedTouches[0].clientX - navStartX;
     const dy = e.changedTouches[0].clientY - navStartY;
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 60) {
-      if (dx < 0 && currentPage === 0) goTo(1);
-      if (dx > 0 && currentPage === 1) goTo(0);
+      if (dx < 0 && currentPage < pages.length - 1) goTo(currentPage + 1);
+      if (dx > 0 && currentPage > 0) goTo(currentPage - 1);
     }
   }, { passive: true });
 
@@ -3057,8 +3443,9 @@ function init() {
   attachSwipeListeners(cList, getState, setState);
 
   initNavigation((page) => {
-    // Re-render missions when switching to that page (keeps state fresh)
+    // Re-render missions/stats when switching to that page (keeps state fresh)
     if (page === 1) renderMissions(missions, onMissionUpdate);
+    if (page === 2) renderStatsPage(player, habits, log);
   });
 
   // -- Yesterday toggle -----------------------------------------

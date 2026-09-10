@@ -41,6 +41,8 @@ SHARED HELPERS (slugify, renderList - used by onboarding and the editors)
 EDIT SETUP (getEditableSetup - staged copy of habits/missions/columns/sectionLabels)
 XP LOGIC (exponential scaling: floor(100 * level^1.5))
 HABIT LOGIC (complete, skip, unskip, streaks, yesterday backfill)
+ENTITLEMENTS (isPremiumUser, statsHistoryLimitDays - freemium hook, see Progress page below)
+STATS / ANALYTICS (statsLogic - pure daily-series aggregation over lifeRPG_log)
 MISSION DEFINITIONS (hardcoded year goals)
 HABIT DEFINITIONS (hardcoded daily habits)
 STORAGE (loadState, saveState, loadMissions, saveMissions)
@@ -50,7 +52,8 @@ SWIPE LISTENERS (left = undo, right = skip)
 HANDLE CLICK (complete habit on tap)
 YESTERDAY TOGGLE (backfill yesterday's habits)
 MISSIONS RENDERING + INTERACTION
-PAGE NAVIGATION (tab bar: Habits / Missions)
+STATS PAGE RENDERING (renderStatsPage - tiles, heatmap, trend, weekly views)
+PAGE NAVIGATION (tab bar: Habits / Missions / Progress)
 AUTH (runAuth — email/password, sign up/in, offline mode)
 ONBOARDING (runOnboarding — 5 screens: name, domains, goals, output, routines)
 COACH MARKS (maybeShowCoachMarks — first-use gesture walkthrough, once)
@@ -83,6 +86,14 @@ ENTRY POINT (async IIFE — checks Supabase session, routes to auth or game)
 - Tap to complete → 500 XP, card slides to bottom, permanently done
 - "Finish Psychology Bachelor" has sub-goals (50 XP each)
 - "Release 20 songs" has a progress bar (tap = +1, auto-completes at 20/20)
+
+### Progress page (v1.2, third tab: "📈 Progress")
+- 3 stat tiles: current streak (same "max current streak across habits" formula as the footer's Best Streak), 7-day completion % (delta vs. prior 7 days, plain "%" wording not "percentage points" - explicitly chosen to avoid jargon), XP this month (delta vs. prior 30 days, relative %)
+- 3 switchable views sharing one computed data series (`statsLogic.buildSeries`): **Heatmap** (GitHub-style calendar grid, default view), **Trend** (daily XP area + 7-day rolling average line, hover tooltip), **Weekly** (bar per 7-day bucket)
+- Data comes entirely from `lifeRPG_log`, which is never pruned (see `checkMidnightReset`) - no new tracking was added
+- Known approximations, documented in code comments rather than solved (no data exists to solve them properly): the +20 all-habits bonus isn't recorded per-day in the log, so it's inferred (all current habits done that day ⇒ assume bonus); the completion-% denominator uses the CURRENT habit list for every past day since the app has no record of which habits existed on which past date
+- **Freemium plumbing (invisible today):** `statsHistoryLimitDays()` silently caps the rendered window to `STATS_FREE_HISTORY_DAYS` (90) because `isPremiumUser()` returns `false` - there is no paid tier yet, so this reads as "Progress shows your last ~3 months," not a paywall. No lock icons/upgrade CTAs ship in this pass. Flipping `isPremiumUser()` to a real entitlement check (plus building the visible gating UI) is the only work needed to activate the v1.3 freemium split.
+- Page-nav (tab bar + swipe) was generalized from a hardcoded 2-page system to N pages for this (`initNavigation()`'s `goTo()` now computes `translateX` from `page`/`pageCount` instead of toggling a fixed `.on-missions` class)
 
 ### Auth + Sync
 - Supabase email/password auth shown on first load
