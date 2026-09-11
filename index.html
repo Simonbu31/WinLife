@@ -3063,14 +3063,29 @@ function initNavigation(onPageChange) {
   // the wrapper's height defaults to the tallest page even when a shorter one
   // is showing, leaving a blank gap above the tab bar.
   function syncHeight() {
-    wrapper.style.height = pages[currentPage].offsetHeight + 'px';
+    // Read the CURRENT (pre-mutation, settled) heights first. .pages-wrapper's
+    // `height` is CSS-transitioned, so reading document.body.scrollHeight right
+    // after reassigning wrapper.style.height can catch it mid-animation and
+    // measure a stale, too-small total - this is what caused a real bug: going
+    // from a short page (Progress) to a taller one (Missions) left Missions
+    // locked at overflow:hidden, unscrollable and hard to swipe away from.
+    // pages[currentPage].offsetHeight is unaffected (a .page isn't stretched by
+    // its flex-parent's height), so compute the post-transition total from that
+    // plus everything else in body measured before we touch the wrapper.
+    const chromeHeight = document.body.scrollHeight - wrapper.offsetHeight;
+    const targetHeight = pages[currentPage].offsetHeight;
+    wrapper.style.height = targetHeight + 'px';
     // When the active page is shorter than the screen there's nothing real to
     // scroll - lock scrolling outright rather than leaning on native rubber-band,
     // since WKWebView's elastic bounce can get stuck at ~zero scrollable range.
-    document.body.style.overflowY = document.body.scrollHeight > window.innerHeight ? 'auto' : 'hidden';
+    document.body.style.overflowY = (chromeHeight + targetHeight) > window.innerHeight ? 'auto' : 'hidden';
   }
   const ro = new ResizeObserver(syncHeight);
   pages.forEach(p => ro.observe(p));
+  // Safety net: if a rapid double-swipe ever catches wrapper.offsetHeight itself
+  // mid-transition above (contaminating chromeHeight), re-run once the height
+  // transition actually settles so overflow can never stay stuck locked.
+  wrapper.addEventListener('transitionend', (e) => { if (e.propertyName === 'height') syncHeight(); });
   syncHeight();
 
   function goTo(page) {
