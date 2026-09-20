@@ -1527,6 +1527,7 @@
       <h1 class="ob-title">Welcome, Hero.</h1>
       <p class="ob-sub">Type your name to start winning today. WinLife turns your daily habits and yearly goals into an RPG. Next, we'll figure out what you're working toward.</p>
       <input class="ob-input" id="obNameInput" type="text" placeholder="Your name" maxlength="24" autocomplete="off">
+      <input class="ob-input ob-input-sm" id="obReferralInput" type="text" placeholder="Referral code (optional)" maxlength="24" autocomplete="off" style="margin-top:8px">
       <button class="ob-btn" id="obNameNext">Begin →</button>
       <label class="ob-skip" for="obOnboardImport">Already have data? Import backup</label>
       <input type="file" id="obOnboardImport" style="display:none">
@@ -1626,9 +1627,23 @@
     <button class="settings-action settings-danger" id="deleteAccountBtn">✕ Delete Account</button>
     <div class="settings-title" style="margin-top:8px">Feedback</div>
     <button class="settings-action" id="feedbackBtn">↗ Report a bug</button>
+    <button class="settings-action" id="referralBtn">🎟 Redeem referral code</button>
   </div>
 </div>
 <div class="settings-backdrop" id="settingsBackdrop"></div>
+
+<div class="feedback-modal hidden" id="referralModal">
+  <div class="feedback-box">
+    <div class="feedback-title">Redeem referral code</div>
+    <p class="feedback-sub">Got a code from a creator? Enter it here.</p>
+    <input class="ob-input ob-input-sm" id="referralCodeInput" type="text" placeholder="Referral code" maxlength="24" autocomplete="off">
+    <div class="feedback-error" id="referralError"></div>
+    <div class="feedback-actions">
+      <button class="ob-skip" id="referralCancel">Cancel</button>
+      <button class="ob-btn" id="referralSubmit" style="margin-top:0; padding: 10px 20px;">Save →</button>
+    </div>
+  </div>
+</div>
 
 <div class="feedback-modal hidden" id="feedbackModal">
   <div class="feedback-box">
@@ -1740,6 +1755,10 @@ const sync = {
       if (!sb) return;
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
+      // referral is set once at onboarding and never rewritten locally, so
+      // pushing it every sync is harmless - it just keeps re-upserting the
+      // same value (see KEYS.referral).
+      const referral = JSON.parse(localStorage.getItem(KEYS.referral) || 'null');
       await sb.from('saves').upsert({
         id:       user.id,
         player:   JSON.parse(localStorage.getItem(KEYS.player)   || '{}'),
@@ -1747,6 +1766,8 @@ const sync = {
         log:      JSON.parse(localStorage.getItem(KEYS.log)      || '{}'),
         missions: JSON.parse(localStorage.getItem(KEYS.missions) || '{}'),
         setup:    JSON.parse(localStorage.getItem(KEYS.setup)    || 'null'),
+        referral_code_used: referral ? referral.code       : null,
+        referred_at:        referral ? referral.referredAt : null,
         updated_at: new Date().toISOString(),
       });
     } catch(e) { console.warn('Sync push failed:', e.message); }
@@ -1764,6 +1785,12 @@ const sync = {
       if (data.log)      localStorage.setItem(KEYS.log,      JSON.stringify(data.log));
       if (data.missions) localStorage.setItem(KEYS.missions, JSON.stringify(data.missions));
       if (data.setup)    localStorage.setItem(KEYS.setup,    JSON.stringify(data.setup));
+      if (data.referral_code_used && !localStorage.getItem(KEYS.referral)) {
+        // Only fill in if this device doesn't already have one - a device that
+        // already onboarded locally with its own code shouldn't be overwritten
+        // by a pull (matches the "set once" intent of referral_code_used).
+        localStorage.setItem(KEYS.referral, JSON.stringify({ code: data.referral_code_used, referredAt: data.referred_at }));
+      }
       return true;
     } catch(e) { console.warn('Sync pull failed:', e.message); return false; }
   },
@@ -1862,6 +1889,8 @@ const KEYS = {
   missions:   'lifeRPG_missions',
   setup:      'lifeRPG_setup',   // FUTURE: edit mode reads/writes here too
   coachmarks: 'lifeRPG_coachmarks_seen',
+  referral:   'lifeRPG_referral', // { code, referredAt } - set once, see runOnboarding()/finish()
+  premium:    'lifeRPG_premium',  // { active, expiresAt } - see refreshEntitlement()
 };
 
 /* ================================================================
@@ -2095,18 +2124,50 @@ const habitLogic = {
 
 /* ================================================================
    ENTITLEMENTS
-   FUTURE (v1.3): replace isPremiumUser() with a real purchase or
-   subscription entitlement check. It returns false today because no
-   paid tier exists yet - everyone gets the free-tier history window,
-   with zero visible "locked"/"upgrade" messaging anywhere, since
-   there is nothing to sell yet. Flipping this one function is what
-   activates the freemium split later; the visible paywall UI (lock
-   icons, upgrade CTAs) is separate future work that goes with it.
+   Real check against subscription_events (Supabase), cached locally so
+   isPremiumUser() can stay a cheap synchronous call at render time.
+   STILL NO VISIBLE PAYWALL/PURCHASE UI YET - subscription_events stays
+   empty until the native StoreKit purchase flow (mobile-only, separate
+   work: a Capacitor IAP plugin + paywall screen + reporting a verified
+   transaction into this table) is built, so this evaluates to false for
+   everyone today exactly like before. Flipping this to "real" now means
+   the day that purchase flow ships, entitlements just start working -
+   no further change needed here.
    ================================================================ */
 const STATS_FREE_HISTORY_DAYS = 90;
 
+let _premiumCache = null; // { active, expiresAt } | null (unknown/not fetched yet)
+
 function isPremiumUser() {
-  return false;
+  if (!_premiumCache || !_premiumCache.active) return false;
+  if (!_premiumCache.expiresAt) return true; // e.g. a non-expiring lifetime grant
+  return new Date(_premiumCache.expiresAt) > new Date();
+}
+
+// Refreshes _premiumCache from localStorage (instant) then, if signed in,
+// from Supabase in the background (source of truth). Call at init and after
+// a purchase/restore completes. Safe no-op offline - falls back to the last
+// known local cache, same offline-first pattern as the rest of the app.
+async function refreshEntitlement() {
+  const cached = JSON.parse(localStorage.getItem(KEYS.premium) || 'null');
+  if (cached) _premiumCache = cached;
+  try {
+    if (!sb) return;
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+    const { data, error } = await sb
+      .from('subscription_events')
+      .select('event_type, expires_date, purchase_date')
+      .eq('user_id', user.id)
+      .order('purchase_date', { ascending: false })
+      .limit(1);
+    if (error || !data || !data.length) return;
+    const latest = data[0];
+    const active = ['SUBSCRIBED', 'RENEWED'].includes(latest.event_type)
+      && (!latest.expires_date || new Date(latest.expires_date) > new Date());
+    _premiumCache = { active, expiresAt: latest.expires_date };
+    localStorage.setItem(KEYS.premium, JSON.stringify(_premiumCache));
+  } catch(e) { console.warn('Entitlement refresh failed:', e.message); }
 }
 
 function statsHistoryLimitDays() {
@@ -3132,6 +3193,7 @@ function runOnboarding(onComplete) {
   const overlay = document.getElementById('onboardingOverlay');
 
   let playerName    = '';
+  let referralCode  = '';
   let routineHabits = [];
   let outputHabits  = [];
   let selectedDomains = [];
@@ -3147,8 +3209,9 @@ function runOnboarding(onComplete) {
   // renderList() and slugify() are shared top-level helpers (see near getDefinitions)
 
   // -- Screen 1: Name -------------------------------------------
-  const nameInput = document.getElementById('obNameInput');
-  const nameNext  = document.getElementById('obNameNext');
+  const nameInput     = document.getElementById('obNameInput');
+  const referralInput = document.getElementById('obReferralInput');
+  const nameNext      = document.getElementById('obNameNext');
 
   nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameNext.click(); });
 
@@ -3178,6 +3241,10 @@ function runOnboarding(onComplete) {
       const val = nameInput.value.trim();
       if (!val) { nameInput.focus(); return; }
       playerName = val;
+      // Lowercase, no validation against referral_partners here on purpose -
+      // an invalid/mistyped code just won't match anything at payout-reconciliation
+      // time server-side. Keeps onboarding free of a network round-trip.
+      referralCode = referralInput.value.trim().toLowerCase();
       showScreen('obDomainsScreen');
     } catch(e) {
       alert('Error: ' + e.message + '\n' + e.stack);
@@ -3405,6 +3472,13 @@ function runOnboarding(onComplete) {
     // Save player name
     const player = { level: 1, totalXP: 0, currentXP: 0, name: playerName };
     localStorage.setItem(KEYS.player, JSON.stringify(player));
+
+    // Save referral code (v1.3 partnership tracking) - set once here, never
+    // overwritten again. See KEYS.referral / sync.push() for how this reaches
+    // the saves table's referral_code_used/referred_at columns.
+    if (referralCode) {
+      localStorage.setItem(KEYS.referral, JSON.stringify({ code: referralCode, referredAt: new Date().toISOString() }));
+    }
 
     overlay.classList.add('hidden');
     onComplete();
@@ -3682,6 +3756,51 @@ function init() {
       feedbackSubmit.textContent = 'Send ->';
       feedbackSubmit.disabled = false;
     }
+  });
+
+  // -- Redeem referral code ---------------------------------------
+  // Onboarding captures this for brand-new signups (see runOnboarding()'s
+  // obReferralInput); this covers existing users redeeming one after the
+  // fact. Same "set once, never overwritten" rule as the onboarding path.
+  const referralModal      = document.getElementById('referralModal');
+  const referralCodeInput  = document.getElementById('referralCodeInput');
+  const referralError      = document.getElementById('referralError');
+  const referralSubmit     = document.getElementById('referralSubmit');
+  const referralCancel     = document.getElementById('referralCancel');
+
+  document.getElementById('referralBtn').addEventListener('click', () => {
+    closeSettings();
+    if (localStorage.getItem(KEYS.referral)) {
+      referralError.textContent = '';
+      referralModal.classList.remove('hidden');
+      referralCodeInput.value = JSON.parse(localStorage.getItem(KEYS.referral)).code;
+      referralCodeInput.disabled = true;
+      referralSubmit.disabled = true;
+      referralError.textContent = 'A referral code is already saved on this account.';
+      return;
+    }
+    referralModal.classList.remove('hidden');
+    referralCodeInput.focus();
+  });
+
+  function closeReferral() {
+    referralModal.classList.add('hidden');
+    referralCodeInput.value = '';
+    referralCodeInput.disabled = false;
+    referralError.textContent = '';
+    referralSubmit.textContent = 'Save ->';
+    referralSubmit.disabled = false;
+  }
+
+  referralCancel.addEventListener('click', closeReferral);
+
+  referralSubmit.addEventListener('click', () => {
+    const code = referralCodeInput.value.trim().toLowerCase();
+    if (!code) { referralError.textContent = 'Enter a code first.'; return; }
+    localStorage.setItem(KEYS.referral, JSON.stringify({ code, referredAt: new Date().toISOString() }));
+    sync.push();
+    closeReferral();
+    showBonusToast('Referral code saved 🎟');
   });
 
   // -- Edit Habits ------------------------------------------------
@@ -4163,6 +4282,12 @@ function maybeShowCoachMarks() {
 }
 
 async function startApp() {
+  // Fire-and-forget, same as sync.push()/pull() - warms _premiumCache in the
+  // background so isPremiumUser() reads current-ish data by the time the
+  // user actually visits the Progress page (renderStatsPage() re-checks it
+  // fresh on every tab switch, so this doesn't need to block first paint).
+  refreshEntitlement();
+
   const setup = localStorage.getItem(KEYS.setup);
   if (!setup) {
     runOnboarding(() => {
