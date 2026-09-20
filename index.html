@@ -6,12 +6,16 @@
 <title>WinLife</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  // Only load the native notifications bridge inside the WinLife app shell -
-  // this file references a Capacitor-only global and would throw on plain web.
+  // Only load the native notifications/purchases bridges inside the WinLife
+  // app shell - these files reference a Capacitor-only global and would
+  // throw on plain web.
   if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
     var lnScript = document.createElement('script');
     lnScript.src = 'local-notifications.js';
     document.head.appendChild(lnScript);
+    var iapScript = document.createElement('script');
+    iapScript.src = 'iap.js';
+    document.head.appendChild(iapScript);
   }
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1165,6 +1169,86 @@
   .ob-mission-add-row .ob-input { flex: 1; }
   .ob-mission-add-row .ob-add-btn { white-space: nowrap; }
 
+  /* ============================================================
+     PAYWALL - reuses the .onboarding-overlay/.ob-* shell for visual
+     consistency, adds its own plan-card selector on top.
+     ============================================================ */
+  .paywall-plans {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .paywall-plan {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-lg);
+    background: var(--bg-panel);
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+  }
+  .paywall-plan.selected { border-color: var(--amber); background: var(--amber-soft); }
+  .paywall-plan-name { font-family: var(--font-body); font-size: 14px; color: var(--text-primary); font-weight: 500; }
+  .paywall-plan-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+  .paywall-plan-price { font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); white-space: nowrap; }
+  .paywall-plan-badge {
+    position: absolute;
+    top: -8px; right: 12px;
+    background: var(--amber);
+    color: #1a1200;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .paywall-features {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 4px 0;
+  }
+  .paywall-feature { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+  .paywall-feature::before { content: '✓'; color: var(--amber); font-family: var(--font-mono); }
+  .paywall-legal {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    text-align: center;
+    margin-top: 4px;
+  }
+  .paywall-legal a { color: var(--text-dim); }
+  .paywall-error { font-size: 12px; color: #e0a05c; text-align: center; min-height: 16px; }
+  .paywall-close {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: none; border: none;
+    color: var(--text-dim);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+  }
+  .paywall-close:hover { color: var(--text-primary); }
+  .paywall-nudge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: center;
+    margin-top: 4px;
+    cursor: pointer;
+    transition: color var(--transition);
+  }
+  .paywall-nudge:hover { color: var(--amber); }
+  .paywall-nudge.hidden { display: none; }
+
   .feedback-modal {
     position: fixed;
     inset: 0;
@@ -1464,6 +1548,7 @@
     <button class="stats-view-btn" data-view="trend">Trend</button>
     <button class="stats-view-btn" data-view="weekly">Weekly</button>
   </div>
+  <div class="paywall-nudge hidden" id="statsHistoryNudge">Showing last 90 days · Unlock full history →</div>
 
   <div class="stats-view-container" id="statsViewContainer"></div>
 
@@ -1608,8 +1693,58 @@
 
 </div><!-- /onboarding-overlay -->
 
+<div class="onboarding-overlay hidden" id="paywallOverlay">
+  <div class="ob-screen active">
+    <div class="ob-inner" style="position:relative">
+      <button class="paywall-close" id="paywallCloseBtn" aria-label="Close">&times;</button>
+      <div class="ob-eyebrow">WinLife</div>
+      <h1 class="ob-title">WinLife Pro</h1>
+      <p class="ob-sub">Unlock your full habit history and support ongoing development.</p>
+
+      <div class="paywall-features">
+        <div class="paywall-feature">Full progress history (free is capped to 90 days)</div>
+        <div class="paywall-feature">Support new features as they ship</div>
+      </div>
+
+      <div class="paywall-plans" id="paywallPlans">
+        <div class="paywall-plan" data-product="winlife_pro_yearly">
+          <span class="paywall-plan-badge">Best value</span>
+          <div>
+            <div class="paywall-plan-name">Yearly</div>
+            <div class="paywall-plan-sub" data-price-sub="winlife_pro_yearly">€24.99 / year</div>
+          </div>
+          <div class="paywall-plan-price" data-price="winlife_pro_yearly">€24.99</div>
+        </div>
+        <div class="paywall-plan" data-product="winlife_pro_monthly">
+          <div>
+            <div class="paywall-plan-name">Monthly</div>
+            <div class="paywall-plan-sub" data-price-sub="winlife_pro_monthly">Billed monthly</div>
+          </div>
+          <div class="paywall-plan-price" data-price="winlife_pro_monthly">€3.99</div>
+        </div>
+      </div>
+
+      <div class="paywall-error" id="paywallError"></div>
+
+      <button class="ob-btn" id="paywallSubscribeBtn">Continue -&gt;</button>
+      <button class="ob-skip" id="paywallRedeemCodeBtn">Have an offer code?</button>
+      <button class="ob-skip" id="paywallRestoreBtn">Restore purchases</button>
+
+      <p class="paywall-legal">
+        Auto-renews until cancelled. Manage or cancel anytime in your Apple ID subscription settings.
+        <a href="https://simonbu31.github.io/WinLife/privacy.html" target="_blank">Privacy Policy</a> ·
+        <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank">Terms of Use</a>
+      </p>
+    </div>
+  </div>
+</div>
+
 <div class="settings-drawer" id="settingsDrawer">
   <div class="settings-inner">
+    <div class="settings-title">Premium</div>
+    <button class="settings-action" id="premiumBtn" style="display:flex; justify-content:space-between; align-items:center;">
+      <span id="premiumBtnLabel">✨ Upgrade to WinLife Pro</span>
+    </button>
     <div class="settings-title">Data</div>
     <button class="settings-action" id="exportBtn">↓ Export progress</button>
     <label class="settings-action" for="importFile">↑ Import progress</label>
@@ -2126,13 +2261,9 @@ const habitLogic = {
    ENTITLEMENTS
    Real check against subscription_events (Supabase), cached locally so
    isPremiumUser() can stay a cheap synchronous call at render time.
-   STILL NO VISIBLE PAYWALL/PURCHASE UI YET - subscription_events stays
-   empty until the native StoreKit purchase flow (mobile-only, separate
-   work: a Capacitor IAP plugin + paywall screen + reporting a verified
-   transaction into this table) is built, so this evaluates to false for
-   everyone today exactly like before. Flipping this to "real" now means
-   the day that purchase flow ships, entitlements just start working -
-   no further change needed here.
+   Populated by the purchase flow below (see IAP section) once a StoreKit
+   transaction comes back - client-reported, not yet server-verified (see
+   IAP section's own comment for the v1/v2 note on that).
    ================================================================ */
 const STATS_FREE_HISTORY_DAYS = 90;
 
@@ -2172,6 +2303,141 @@ async function refreshEntitlement() {
 
 function statsHistoryLimitDays() {
   return isPremiumUser() ? Infinity : STATS_FREE_HISTORY_DAYS;
+}
+
+/* ================================================================
+   IN-APP PURCHASES (WinLife Pro)
+   Native-only (iap.js / @capgo/native-purchases, see conditional loader
+   in <head>) - window.capacitorNativePurchases is undefined on web, so
+   every function here checks for it first and degrades to "not available
+   here" rather than throwing.
+
+   v1 trust model: the client reports whatever StoreKit hands back straight
+   into subscription_events, unverified. Good enough at this scale; the
+   real fix (a Supabase Edge Function validating the JWS, or App Store
+   Server Notifications V2 feeding subscription_events server-side) is
+   future work, documented alongside the referral-partnership notes.
+   ================================================================ */
+const IAP_PRODUCTS = { monthly: 'winlife_pro_monthly', yearly: 'winlife_pro_yearly' };
+
+function getNativePurchases() {
+  // Same access pattern as getLocalNotifications() (window.Capacitor.Plugins.X) -
+  // Capacitor's native runtime registers every loaded plugin there itself,
+  // regardless of the injected <script> tag's own load timing.
+  return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativePurchases;
+}
+
+// Maps a StoreKit Transaction (from purchaseProduct/getPurchases/the
+// transactionUpdated listener) into a subscription_events row and writes it.
+async function reportTransaction(transaction) {
+  if (!transaction) return;
+  const expiresDate = transaction.expirationDate || null;
+  // isActive comes straight from StoreKit when present; fall back to "has
+  // an expiry in the future" for older plugin versions that omit it.
+  const active = transaction.isActive !== undefined
+    ? transaction.isActive
+    : (!expiresDate || new Date(expiresDate) > new Date());
+
+  // The local entitlement grant is unconditional - Apple already took the
+  // payment, so it must unlock the app regardless of whether this device
+  // also happens to have a Supabase account (offline-first, same as
+  // everything else here). Only the server-side bookkeeping row (used for
+  // the referral-partner payout reconciliation, not for gating features)
+  // needs a signed-in user, and is best-effort.
+  _premiumCache = { active, expiresAt: expiresDate };
+  localStorage.setItem(KEYS.premium, JSON.stringify(_premiumCache));
+
+  try {
+    if (!sb) return;
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+    await sb.from('subscription_events').insert({
+      user_id: user.id,
+      event_type: active ? 'SUBSCRIBED' : 'EXPIRED', // v1: coarse - RENEWED/CANCELLED distinctions need App Store Server Notifications (v2)
+      product_id: transaction.productIdentifier || 'unknown',
+      transaction_id: String(transaction.transactionId),
+      purchase_date: transaction.purchaseDate || new Date().toISOString(),
+      expires_date: expiresDate,
+      raw_payload: transaction,
+    });
+  } catch(e) { console.warn('reportTransaction (server-side) failed:', e.message); }
+}
+
+// Called once from startApp() on native - catches renewals/restores/family-
+// shared purchases that happen outside an explicit purchasePro() call.
+function initIAP() {
+  const NativePurchases = getNativePurchases();
+  if (!NativePurchases) return;
+  NativePurchases.addListener('transactionUpdated', (transaction) => {
+    reportTransaction(transaction);
+  });
+}
+
+async function purchasePro(productId) {
+  const NativePurchases = getNativePurchases();
+  if (!NativePurchases) throw new Error('In-app purchases are only available in the iOS app.');
+  const { data: { user } } = sb ? await sb.auth.getUser() : { data: { user: null } };
+  const transaction = await NativePurchases.purchaseProduct({
+    productIdentifier: productId,
+    productType: 'subs',
+    appAccountToken: user ? user.id : undefined, // ties the StoreKit transaction to this account for later server-side reconciliation
+  });
+  await reportTransaction(transaction);
+  return transaction;
+}
+
+async function restorePurchasesFlow() {
+  const NativePurchases = getNativePurchases();
+  if (!NativePurchases) throw new Error('Restore is only available in the iOS app.');
+  await NativePurchases.restorePurchases();
+  const { purchases } = await NativePurchases.getPurchases({ onlyCurrentEntitlements: true });
+  for (const p of purchases) await reportTransaction(p);
+  return purchases.length;
+}
+
+async function presentOfferCodeSheet() {
+  const NativePurchases = getNativePurchases();
+  if (!NativePurchases) throw new Error('Offer codes are only redeemable in the iOS app.');
+  await NativePurchases.presentOfferCodeRedeemSheet();
+}
+
+async function manageSubscription() {
+  const NativePurchases = getNativePurchases();
+  if (!NativePurchases) return;
+  await NativePurchases.manageSubscriptions();
+}
+
+// Live prices from the App Store, falling back to the static text already
+// in the paywall markup if unavailable (web, offline, or products not
+// approved/live yet) - never leaves the paywall blank.
+async function loadPaywallPrices() {
+  const NativePurchases = getNativePurchases();
+  if (!NativePurchases) return;
+  try {
+    const { products } = await NativePurchases.getProducts({
+      productIdentifiers: [IAP_PRODUCTS.monthly, IAP_PRODUCTS.yearly],
+      productType: 'subs',
+    });
+    products.forEach((p) => {
+      const priceEl = document.querySelector(`[data-price="${p.identifier}"]`);
+      const subEl   = document.querySelector(`[data-price-sub="${p.identifier}"]`);
+      if (priceEl) priceEl.textContent = p.priceString;
+      if (subEl) subEl.textContent = p.identifier === IAP_PRODUCTS.yearly ? `${p.priceString} / year` : 'Billed monthly';
+    });
+  } catch(e) { console.warn('loadPaywallPrices failed:', e.message); }
+}
+
+// True if the free 90-day cap actually hid real history (not just "no data
+// yet") - used to decide whether the Progress page nudge is worth showing.
+function hasHistoryBeyondFreeCap(log) {
+  if (isPremiumUser()) return false;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - STATS_FREE_HISTORY_DAYS);
+  return Object.keys(log).some((dateKey) => {
+    if (new Date(dateKey) >= cutoff) return false;
+    const entry = log[dateKey];
+    return entry && Object.values(entry).some((v) => v === true);
+  });
 }
 
 /* ================================================================
@@ -2931,6 +3197,8 @@ function renderStatsPage(player, habits, log) {
   renderStatsTiles(series, habits);
   renderStatsView(series);
 
+  document.getElementById('statsHistoryNudge').classList.toggle('hidden', !hasHistoryBeyondFreeCap(log));
+
   // Wire the view switcher once - re-renders on every page visit shouldn't
   // stack duplicate click listeners.
   const switchEl = document.getElementById('statsViewSwitch');
@@ -3589,7 +3857,12 @@ function init() {
   const exportBtn        = document.getElementById('exportBtn');
   const importFile       = document.getElementById('importFile');
 
-  function openSettings()  { settingsDrawer.classList.add('open'); settingsBackdrop.classList.add('open'); }
+  function refreshPremiumBtn() {
+    const label = document.getElementById('premiumBtnLabel');
+    label.textContent = isPremiumUser() ? '⭐ WinLife Pro — Manage' : '✨ Upgrade to WinLife Pro';
+  }
+
+  function openSettings()  { settingsDrawer.classList.add('open'); settingsBackdrop.classList.add('open'); refreshPremiumBtn(); }
   function closeSettings() { settingsDrawer.classList.remove('open'); settingsBackdrop.classList.remove('open'); }
 
   settingsBtn.addEventListener('click', () => settingsDrawer.classList.contains('open') ? closeSettings() : openSettings());
@@ -3756,6 +4029,92 @@ function init() {
       feedbackSubmit.textContent = 'Send ->';
       feedbackSubmit.disabled = false;
     }
+  });
+
+  // -- Paywall (WinLife Pro) ---------------------------------------
+  const paywallOverlay     = document.getElementById('paywallOverlay');
+  const paywallPlans       = document.getElementById('paywallPlans');
+  const paywallSubscribeBtn = document.getElementById('paywallSubscribeBtn');
+  const paywallRedeemCodeBtn = document.getElementById('paywallRedeemCodeBtn');
+  const paywallRestoreBtn  = document.getElementById('paywallRestoreBtn');
+  const paywallCloseBtn    = document.getElementById('paywallCloseBtn');
+  const paywallError       = document.getElementById('paywallError');
+  let paywallSelectedProduct = IAP_PRODUCTS.yearly; // pre-selected as the default plan
+
+  function syncPaywallSelection() {
+    paywallPlans.querySelectorAll('.paywall-plan').forEach((el) => {
+      el.classList.toggle('selected', el.dataset.product === paywallSelectedProduct);
+    });
+  }
+  syncPaywallSelection();
+
+  paywallPlans.querySelectorAll('.paywall-plan').forEach((el) => {
+    el.addEventListener('click', () => {
+      paywallSelectedProduct = el.dataset.product;
+      syncPaywallSelection();
+    });
+  });
+
+  function openPaywall() {
+    paywallError.textContent = '';
+    paywallOverlay.classList.remove('hidden');
+    loadPaywallPrices();
+  }
+  function closePaywall() { paywallOverlay.classList.add('hidden'); }
+
+  paywallCloseBtn.addEventListener('click', closePaywall);
+
+  document.getElementById('premiumBtn').addEventListener('click', () => {
+    closeSettings();
+    if (isPremiumUser()) { manageSubscription(); return; }
+    openPaywall();
+  });
+
+  // Progress-page nudge (see renderStatsPage()) opens straight to the paywall
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#statsHistoryNudge')) openPaywall();
+  });
+
+  paywallSubscribeBtn.addEventListener('click', async () => {
+    paywallError.textContent = '';
+    paywallSubscribeBtn.textContent = '...';
+    paywallSubscribeBtn.disabled = true;
+    try {
+      await purchasePro(paywallSelectedProduct);
+      closePaywall();
+      refreshPremiumBtn();
+      showBonusToast('Welcome to WinLife Pro ⭐');
+      renderStatsPage(player, habits, log); // re-render so the Progress page reflects the unlocked history immediately
+    } catch(e) {
+      paywallError.textContent = e.message || 'Purchase failed. Please try again.';
+    } finally {
+      paywallSubscribeBtn.textContent = 'Continue ->';
+      paywallSubscribeBtn.disabled = false;
+    }
+  });
+
+  paywallRestoreBtn.addEventListener('click', async () => {
+    paywallError.textContent = '';
+    paywallRestoreBtn.textContent = 'Restoring...';
+    try {
+      const count = await restorePurchasesFlow();
+      if (count > 0 && isPremiumUser()) {
+        closePaywall();
+        refreshPremiumBtn();
+        showBonusToast('Purchases restored ⭐');
+      } else {
+        paywallError.textContent = 'No active purchases found for this Apple ID.';
+      }
+    } catch(e) {
+      paywallError.textContent = e.message || 'Restore failed. Please try again.';
+    } finally {
+      paywallRestoreBtn.textContent = 'Restore purchases';
+    }
+  });
+
+  paywallRedeemCodeBtn.addEventListener('click', async () => {
+    try { await presentOfferCodeSheet(); }
+    catch(e) { paywallError.textContent = e.message || 'Offer codes aren\'t available yet.'; }
   });
 
   // -- Redeem referral code ---------------------------------------
@@ -4287,6 +4646,7 @@ async function startApp() {
   // user actually visits the Progress page (renderStatsPage() re-checks it
   // fresh on every tab switch, so this doesn't need to block first paint).
   refreshEntitlement();
+  initIAP();
 
   const setup = localStorage.getItem(KEYS.setup);
   if (!setup) {
