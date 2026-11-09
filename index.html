@@ -1667,6 +1667,7 @@
           <input class="ob-input ob-input-sm" id="obOutputSub"   type="text" placeholder="Sub-label (optional)" maxlength="40">
           <button class="ob-add-btn" id="obOutputAdd">+ Add</button>
         </div>
+        <p class="feedback-error" id="obOutputError"></p>
         <div class="ob-list" id="obOutputList"></div>
         <button class="ob-btn" id="obOutputNext">Next →</button>
         <button class="ob-skip" id="obOutputSkip">Skip for now</button>
@@ -1685,6 +1686,7 @@
         <input class="ob-input ob-input-sm" id="obRoutineSub"   type="text" placeholder="Sub-label (optional)" maxlength="40">
         <button class="ob-add-btn" id="obRoutineAdd">+ Add</button>
       </div>
+      <p class="feedback-error" id="obRoutineError"></p>
       <div class="ob-list" id="obRoutineList"></div>
       <button class="ob-btn" id="obRoutinesNext">Enter the arena →</button>
       <button class="ob-skip" id="obRoutinesSkip">Skip for now</button>
@@ -1699,9 +1701,10 @@
       <button class="paywall-close" id="paywallCloseBtn" aria-label="Close">&times;</button>
       <div class="ob-eyebrow">WinLife</div>
       <h1 class="ob-title">WinLife Pro</h1>
-      <p class="ob-sub">Unlock your full habit history and support ongoing development.</p>
+      <p class="ob-sub">Unlock unlimited habits and your full progress history.</p>
 
       <div class="paywall-features">
+        <div class="paywall-feature">Unlimited habits (free is capped at 10)</div>
         <div class="paywall-feature">Full progress history (free is capped to 90 days)</div>
         <div class="paywall-feature">Support new features as they ship</div>
       </div>
@@ -2266,6 +2269,7 @@ const habitLogic = {
    IAP section's own comment for the v1/v2 note on that).
    ================================================================ */
 const STATS_FREE_HISTORY_DAYS = 90;
+const FREE_HABIT_LIMIT = 10; // total habits across both sections; existing habits above this are grandfathered, only new additions are blocked
 
 let _premiumCache = null; // { active, expiresAt } | null (unknown/not fetched yet)
 
@@ -3652,6 +3656,7 @@ function runOnboarding(onComplete) {
   const oLabelInput   = document.getElementById('obOutputLabel');
   const oSubInput     = document.getElementById('obOutputSub');
   const oAddBtn       = document.getElementById('obOutputAdd');
+  const oError        = document.getElementById('obOutputError');
   const obOList       = document.getElementById('obOutputList');
   const oNext         = document.getElementById('obOutputNext');
   const oSkip         = document.getElementById('obOutputSkip');
@@ -3663,6 +3668,11 @@ function runOnboarding(onComplete) {
   function addOutput() {
     const label = oLabelInput.value.trim();
     if (!label) { oLabelInput.focus(); return; }
+    if (!isPremiumUser() && routineHabits.length + outputHabits.length >= FREE_HABIT_LIMIT) {
+      oError.textContent = `Free plan is limited to ${FREE_HABIT_LIMIT} habits total — upgrade to WinLife Pro for unlimited habits.`;
+      return;
+    }
+    oError.textContent = '';
     const sub  = oSubInput.value.trim();
     const ids  = outputHabits.map(h => h.id);
     outputHabits.push({ id: slugify(label, ids), label, sub, section: 'content', xp: 15 });
@@ -3690,6 +3700,7 @@ function runOnboarding(onComplete) {
   const rLabelInput  = document.getElementById('obRoutineLabel');
   const rSubInput    = document.getElementById('obRoutineSub');
   const rAddBtn      = document.getElementById('obRoutineAdd');
+  const rError       = document.getElementById('obRoutineError');
   const obRList      = document.getElementById('obRoutineList');
   const rNext        = document.getElementById('obRoutinesNext');
   const rSkip        = document.getElementById('obRoutinesSkip');
@@ -3701,6 +3712,11 @@ function runOnboarding(onComplete) {
   function addRoutine() {
     const label = rLabelInput.value.trim();
     if (!label) { rLabelInput.focus(); return; }
+    if (!isPremiumUser() && routineHabits.length + outputHabits.length >= FREE_HABIT_LIMIT) {
+      rError.textContent = `Free plan is limited to ${FREE_HABIT_LIMIT} habits total — upgrade to WinLife Pro for unlimited habits.`;
+      return;
+    }
+    rError.textContent = '';
     const sub  = rSubInput.value.trim();
     const ids  = routineHabits.map(h => h.id);
     routineHabits.push({ id: slugify(label, ids), label, sub, section: 'routines', xp: 10 });
@@ -4232,12 +4248,27 @@ function init() {
     editHabitsState = null;
   }
 
+  // Shown when a free-tier user hits FREE_HABIT_LIMIT while adding a habit;
+  // closes this modal and opens the paywall so they can upgrade directly.
+  function showHabitLimitUpgrade() {
+    habitsEditorError.innerHTML = `Free plan is limited to ${FREE_HABIT_LIMIT} habits total. <span class="paywall-nudge" id="habitLimitUpgradeLink" style="display:inline;margin:0">Upgrade to WinLife Pro →</span>`;
+    document.getElementById('habitLimitUpgradeLink').addEventListener('click', () => {
+      closeHabitsEditor();
+      openPaywall();
+    });
+  }
+
   document.getElementById('editHabitsBtn').addEventListener('click', () => { closeSettings(); openHabitsEditor(); });
   document.getElementById('habitsEditorCancel').addEventListener('click', closeHabitsEditor);
 
   editRoutineAdd.addEventListener('click', () => {
     const label = editRoutineLabel.value.trim();
     if (!label) { editRoutineLabel.focus(); return; }
+    if (!isPremiumUser() && editHabitsState.habits.length >= FREE_HABIT_LIMIT) {
+      showHabitLimitUpgrade();
+      return;
+    }
+    habitsEditorError.textContent = '';
     const sub = editRoutineSub.value.trim();
     const ids = editHabitsState.habits.map(h => h.id);
     editHabitsState.habits.push({ id: slugify(label, ids), label, sub, section: 'routines', xp: 10 });
@@ -4250,6 +4281,11 @@ function init() {
   editOutputAdd.addEventListener('click', () => {
     const label = editOutputLabel.value.trim();
     if (!label) { editOutputLabel.focus(); return; }
+    if (!isPremiumUser() && editHabitsState.habits.length >= FREE_HABIT_LIMIT) {
+      showHabitLimitUpgrade();
+      return;
+    }
+    habitsEditorError.textContent = '';
     const sub = editOutputSub.value.trim();
     const ids = editHabitsState.habits.map(h => h.id);
     editHabitsState.habits.push({ id: slugify(label, ids), label, sub, section: 'content', xp: 15 });
