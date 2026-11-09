@@ -160,12 +160,13 @@ Simon's hardcoded habit/mission definitions are in the file. His backup can be i
 
 ## Deployment
 ```bash
-# Every update:
-cp ~/Downloads/life-rpg-5.html ~/Downloads/Life_RPG/index.html
+# Edit index.html directly (it's the source of truth, no copy-in step needed)
 cd ~/Downloads/Life_RPG
 git add . && git commit -m "update" && git push
 ```
-SSH is set up, no password needed.
+SSH is set up, no password needed. GitHub Pages auto-deploys from `main`.
+
+For the iOS App Store build (Capacitor wrapper, already shipped three times — see `mobile/`), see the WinLife project's own `CLAUDE.md` (`~/vibecoding projects/claude/WinLife (LifeRPG)/CLAUDE.md`) for the full archive/upload/App-Store-Connect process.
 
 ---
 
@@ -175,8 +176,10 @@ SSH is set up, no password needed.
 - Quest board / weekly goals
 - Skill unlocks after X-day streaks
 - PWA wrapper (installable, offline)
-- App Store consideration (would need Capacitor or Swift rewrite)
 - Rename/XP-edit of individual existing habits and goals (Edit Habits/Edit Goals currently only support add + delete)
+- v1.3 freemium paid tier — the Progress page's 90-day history cap already exists as invisible plumbing (`isPremiumUser()`/`statsHistoryLimitDays()`); activating it needs a real entitlement check plus visible lock/upgrade UI (see WinLife project `CLAUDE.md` roadmap for details)
+
+Already shipped, not roadmap anymore: **App Store release** — live via Capacitor wrapper (`mobile/`), v1.0/v1.1 approved and live, v1.2 submitted Sep 10 2026 awaiting review.
 
 ---
 

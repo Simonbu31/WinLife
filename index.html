@@ -2806,7 +2806,7 @@ function showLevelUp(level) {
    Swipe right / tap elsewhere -> snap back
    Tap undo button -> reverse completion, slide card back to top
    ================================================================ */
-function attachSwipeListeners(list, getState, setState) {
+function attachSwipeListeners(list, getState, commitState, rerender) {
   let startX = 0, startY = 0, swipedRow = null, isDragging = false;
 
   // Close any open swiped row except the one passed in
@@ -2866,9 +2866,10 @@ function attachSwipeListeners(list, getState, setState) {
       let { player, habits, log } = getState();
       ({ log, habits } = habitLogic.skip(log, habits, habitId));
       saveState(player, habits, log);
+      commitState({ player, habits, log });
       snapBack(swipedRow);
       showSkipToast(habitId);
-      setTimeout(() => setState({ player, habits, log }), 220);
+      setTimeout(() => rerender(), 220);
     } else {
       snapBack(swipedRow);
     }
@@ -2913,9 +2914,10 @@ function attachSwipeListeners(list, getState, setState) {
         let { player, habits, log } = getState();
         ({ log, habits } = habitLogic.skip(log, habits, habitId));
         saveState(player, habits, log);
+        commitState({ player, habits, log });
         snapBack(swipedRow);
         showSkipToast(habitId);
-        setTimeout(() => setState({ player, habits, log }), 220);
+        setTimeout(() => rerender(), 220);
       } else {
         snapBack(swipedRow);
       }
@@ -2946,9 +2948,10 @@ function attachSwipeListeners(list, getState, setState) {
       let { player, habits, log } = getState();
       ({ log, habits } = habitLogic.unskip(log, habits, habitId));
       saveState(player, habits, log);
+      commitState({ player, habits, log });
       const row = unskipBtn.closest('.card-row');
       snapBack(row);
-      setTimeout(() => setState({ player, habits, log }), 220);
+      setTimeout(() => rerender(), 220);
       return;
     }
 
@@ -2987,13 +2990,14 @@ function attachSwipeListeners(list, getState, setState) {
     }};
 
     saveState(player, habits, log);
+    commitState({ player, habits, log });
 
     // Animate the row snapping back, then re-render with card sliding to top
     const row = btn.closest('.card-row');
     snapBack(row);
 
     setTimeout(() => {
-      setState({ player, habits, log });
+      rerender();
 
       // Animate the newly-uncompleted card sliding in at top
       const newRow = list.querySelector(`[data-id="${habitId}"]`);
@@ -3013,7 +3017,7 @@ function attachSwipeListeners(list, getState, setState) {
    ================================================================ */
 let _swipeJustHappened = false;
 
-function handleClick(e, state, onComplete) {
+function handleClick(e, state, onCommit, onRender) {
   if (_swipeJustHappened) { _swipeJustHappened = false; return; }
   // Ignore clicks that originated from the undo button
   if (e.target.closest('.undo-btn')) return;
@@ -3027,12 +3031,16 @@ function handleClick(e, state, onComplete) {
   const bonusXP = allDone ? 20 : 0;
   const { player, levelsGained } = xpLogic.addXP(state.player, habit.xp + bonusXP);
   saveState(player, habits, log);
+  // Commit to the live state immediately so a quick follow-up action (e.g.
+  // backfilling yesterday right after completing today) always builds on
+  // this result instead of a stale pre-completion snapshot.
+  onCommit({ player, habits, log });
   showXPPopup(habit.xp, card);
 
   card.classList.add('sliding-out');
 
   setTimeout(() => {
-    onComplete({ player, habits, log });
+    onRender();
     const list = card.closest('.habits-list');
     if (list) {
       const newRow  = list.querySelector(`[data-id="${habit.id}"]`);
@@ -3785,19 +3793,21 @@ function init() {
   renderAll(player, habits, log, missions, onMissionUpdate);
 
   const getState  = () => ({ player, habits, log, missions });
-  const setState  = (next) => {
-    ({ player, habits, log } = next);
-    renderAll(player, habits, log, missions, onMissionUpdate);
-  };
+  // commitState writes to the live player/habits/log vars synchronously, so
+  // quick successive actions (e.g. completing today then immediately
+  // backfilling yesterday) never read or clobber a stale pre-action snapshot.
+  // Rendering can still be deferred for animation timing; the commit cannot.
+  const commitState = (next) => { ({ player, habits, log } = next); };
+  const rerender    = () => renderAll(player, habits, log, missions, onMissionUpdate);
 
   const rList = document.getElementById('routinesList');
   const cList = document.getElementById('contentList');
 
-  rList.addEventListener('click', (e) => { if (viewingYesterday) return; handleClick(e, getState(), setState); });
-  cList.addEventListener('click', (e) => { if (viewingYesterday) return; handleClick(e, getState(), setState); });
+  rList.addEventListener('click', (e) => { if (viewingYesterday) return; handleClick(e, getState(), commitState, rerender); });
+  cList.addEventListener('click', (e) => { if (viewingYesterday) return; handleClick(e, getState(), commitState, rerender); });
 
-  attachSwipeListeners(rList, getState, setState);
-  attachSwipeListeners(cList, getState, setState);
+  attachSwipeListeners(rList, getState, commitState, rerender);
+  attachSwipeListeners(cList, getState, commitState, rerender);
 
   initNavigation((page) => {
     // Re-render missions/stats when switching to that page (keeps state fresh)
